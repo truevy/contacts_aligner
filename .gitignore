@@ -1,0 +1,6 @@
+node_modules
+out
+dist
+native/contacts-helper/build
+*.log
+.DS_Store
