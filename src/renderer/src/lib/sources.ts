@@ -33,7 +33,7 @@ export const SOURCES: SourceMeta[] = [
     color: '#EA4335',
     monogram: 'G',
     group: 'contacts',
-    tagline: 'Google Contacts + Gmail sent/received headers',
+    tagline: 'Google Contacts, plus optional Gmail history',
     gives: ['Contacts', 'Email recency'],
     auth: 'oauth-google',
     steps: [
@@ -47,7 +47,7 @@ export const SOURCES: SourceMeta[] = [
       { key: 'clientId', label: 'Client ID', type: 'text', placeholder: '1234-abc.apps.googleusercontent.com' },
       { key: 'clientSecret', label: 'Client secret', type: 'password', placeholder: 'GOCSPX-…', hint: 'For desktop apps Google calls this a secret, but it only identifies your app. Your password never touches this app.' }
     ],
-    privacy: 'Uses the gmail.metadata scope, which cannot read message bodies. Only From/To/Cc/Date headers are read. Tokens are encrypted with your macOS Keychain.'
+    privacy: 'The Mac option signs in through Apple’s Internet Accounts, so this app never sees your Google password. App passwords and tokens are encrypted with your macOS Keychain. Only From/To/Cc/Date mail headers are read, never message bodies.'
   },
   {
     kind: 'icloud',
@@ -142,7 +142,7 @@ export const SOURCES: SourceMeta[] = [
     auth: 'local',
     steps: [
       { text: 'Click Connect. macOS will ask to let Contacts Aligner access your contacts; choose Allow.' },
-      { text: 'Tip: Contacts.app also shows your iCloud and Google cards. Pick whichever you prefer as a source of truth; the duplicate finder handles overlaps either way.' }
+      { text: 'Includes every account in Contacts.app (iCloud, On My Mac, …), except a Google account you connect through the Google tile, which is counted there instead.' }
     ],
     privacy: 'Contacts are read through Apple’s Contacts framework and nothing leaves your Mac.'
   },
@@ -158,7 +158,7 @@ export const SOURCES: SourceMeta[] = [
     gives: ['Email recency', 'Previous Recipients cleanup'],
     auth: 'fda',
     steps: [
-      { text: 'Grant Full Disk Access to Contacts Aligner (in development, grant it to Electron or to your terminal).' },
+      { text: 'Grant Full Disk Access to Contacts Aligner in System Settings → Privacy & Security.' },
       { text: 'Covers every account configured in Mail, including ones not listed here. It is also the fastest email-recency source.' }
     ],
     privacy: 'Only sender/recipient addresses and dates are read. Subjects and bodies are never queried.'

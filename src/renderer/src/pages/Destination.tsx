@@ -17,12 +17,16 @@ const FORMATS: Array<{ id: ExportFormat; title: string; desc: string; file: stri
 ]
 
 export function Destination() {
-  const { data, analysis, targets, set, createMissing, deleteDuplicates, cleanRecents, go } = useStore()
+  const { data, analysis, targets, set, createMissing, deleteDuplicates, cleanRecents, go, info } = useStore()
   const aligned = useAligned()
   const recents = useRecentsPlan()
   const [saved, setSaved] = useState<string>()
 
-  const available = useMemo(() => CONTACT_SOURCES.filter((k) => data?.contacts.some((c) => c.source === k)), [data])
+  // Read-only sources (e.g. an imported Google contacts file) can only be exported to.
+  const available = useMemo(
+    () => CONTACT_SOURCES.filter((k) => data?.contacts.some((c) => c.source === k) && info?.sources.find((s) => s.kind === k)?.writable !== false),
+    [data, info]
+  )
   const toggle = (k: SourceKind) => set({ targets: targets.includes(k) ? targets.filter((t) => t !== k) : [...targets, k] })
   const withEmail = aligned.filter((a) => a.emails.length).length
 

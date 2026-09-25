@@ -57,3 +57,14 @@ export function imapUsage(kind: SourceKind, host: string, creds: () => { usernam
     }
   }
 }
+
+/** Log in and out, to validate an app password without scanning anything. */
+export async function testImapLogin(host: string, user: string, pass: string) {
+  const client = new ImapFlow({ host, port: 993, secure: true, auth: { user, pass }, logger: false })
+  try {
+    await client.connect()
+  } catch {
+    throw new Error('Gmail rejected the app password. Check the address and paste the 16-character app password again.')
+  }
+  await client.logout().catch(() => undefined)
+}

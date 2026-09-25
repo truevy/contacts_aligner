@@ -18,6 +18,7 @@ Choose **Explore with demo data** to walk the whole flow with synthetic contacts
 | `npm test` | Engine and local-reader unit tests (vitest) |
 | `npm run e2e` | Builds, then drives the real app through the entire demo flow with Playwright |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run app` | Builds and opens the standalone “Contacts Aligner.app” (own name and permissions) |
 | `npm run dist` | Signed `.dmg` via electron-builder (set up a Developer ID to sign) |
 
 ## Flow
@@ -39,18 +40,26 @@ Choose **Explore with demo data** to walk the whole flow with synthetic contacts
 
 | Source | Contacts | Usage signal | Auth |
 |---|---|---|---|
-| Gmail | People API | Gmail `gmail.metadata` scope: headers only, bodies can't be read | OAuth desktop client you register (guided) |
+| Gmail | **This Mac** (easiest): the Google account added in System Settings → Internet Accounts, read and written through the Contacts framework. Or a **contacts file** (vCard export, read-only). Or **Advanced**: People API | Mail.app history, an optional Gmail app password (IMAP headers), or the Gmail API `gmail.metadata` scope in Advanced mode | None beyond Apple’s own Google sign-in; optional app password; Advanced needs your own OAuth client |
 | Outlook.com | Microsoft Graph | Graph `Mail.ReadBasic`: no bodies | Entra app registration you create (guided) |
 | Exchange | Graph (M365) or EWS (on-prem, Basic auth) | Sent and Inbox headers | Same as above, or username/password |
 | iCloud | CardDAV | IMAP envelopes | App-specific password |
 | Yahoo | CardDAV | IMAP envelopes | App password |
-| Apple Contacts | Swift helper (`native/contacts-helper`) | — | macOS Contacts permission |
+| Apple Contacts | Swift helper (`native/contacts-helper`), every account except one claimed by the Google tile | — | macOS Contacts permission |
 | Mail.app | — | `Envelope Index`: addresses and dates only | Full Disk Access |
 | Messages | — | `chat.db`: handle, date and direction only, never text | Full Disk Access |
 | iPhone calls | — | `CallHistory.storedata`, synced via Continuity | Full Disk Access |
 | iPhone backup | — | `sms.db` and call history from an unencrypted Finder backup | Full Disk Access |
 
-While developing, grant Full Disk Access to the app that launches Electron (your terminal or IDE) in System Settings → Privacy & Security.
+### Running as “Contacts Aligner”
+
+`npm run dev` runs inside the generic Electron binary. macOS then asks for Contacts and Full Disk Access on behalf of whichever app launched it (Terminal, your IDE, or Claude). To get prompts and a Full Disk Access entry named **Contacts Aligner**, run the standalone app:
+
+```bash
+npm run app   # builds an ad-hoc-signed dist/mac*/Contacts Aligner.app and opens it
+```
+
+Ad-hoc signatures change on every build, so macOS may ask for permissions again after a rebuild. A Developer ID-signed `npm run dist` build keeps its permissions.
 
 ## Privacy and safety
 
