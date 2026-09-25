@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --color-ink-950: #070b16;
+  --color-ink-900: #0b1020;
+  --color-ink-850: #10172b;
+  --color-ink-800: #151d35;
+  --color-ink-700: #1f2a48;
+  --color-ink-600: #2c3a5f;
+  --color-ink-400: #7c89ab;
+  --color-ink-300: #a6b0cc;
+  --color-ink-200: #cdd4e6;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+  --color-accent: #818cf8;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 700px at 15% -10%, #1e2a5a 0%, transparent 60%),
+              radial-gradient(900px 600px at 110% 10%, #3b1d5e 0%, transparent 55%),
+              var(--color-ink-900);
+  color: var(--color-ink-200);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+input, textarea, select, .selectable { user-select: text; }
+
+.drag { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
+
+.glass {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.025));
+  border: 1px solid rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(18px);
+}
+.glass-strong {
+  background: linear-gradient(180deg, rgb(21 29 53 / 0.96), rgb(16 23 43 / 0.96));
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+/* In a layer so Tailwind utilities (e.g. pl-9 on .field) can override these. */
+@layer components {
+.btn {
+  display: inline-flex; align-items: center; gap: .5rem; border-radius: .75rem;
+  padding: .55rem 1rem; font-weight: 600; font-size: .875rem; transition: all .15s ease;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: linear-gradient(135deg, #6366f1, #a855f7); color: white; box-shadow: 0 8px 24px -8px #7c3aed; }
+.btn-primary:not(:disabled):hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn-ghost { background: rgb(255 255 255 / .06); color: var(--color-ink-200); border: 1px solid rgb(255 255 255 / .08); }
+.btn-ghost:not(:disabled):hover { background: rgb(255 255 255 / .1); }
+.btn-danger { background: #7f1d1d; color: #fecaca; }
+
+.field {
+  width: 100%; border-radius: .6rem; padding: .55rem .75rem; font-size: .875rem;
+  background: rgb(0 0 0 / .25); border: 1px solid rgb(255 255 255 / .1); color: white; outline: none;
+}
+.field:focus { border-color: #818cf8; box-shadow: 0 0 0 3px rgb(129 140 248 / .25); }
+}
+
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: rgb(255 255 255 / .12); border-radius: 8px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+.kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; background: rgb(255 255 255 / .08); padding: .05rem .35rem; border-radius: .3rem; }

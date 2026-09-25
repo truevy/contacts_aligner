@@ -1,0 +1,76 @@
+{
+  "name": "contacts-aligner",
+  "version": "0.1.0",
+  "description": "Reconcile contacts across Gmail, iCloud, Yahoo, Microsoft, Exchange and Apple Contacts using real usage history.",
+  "main": "out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build:helper": "bash native/contacts-helper/build.sh",
+    "dist": "npm run build:helper && electron-vite build && electron-builder --mac",
+    "e2e": "electron-vite build && node e2e/demo-flow.mjs",
+    "predev": "test -f native/contacts-helper/build/contacts-helper || npm run build:helper"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "playwright-core": "^1.63.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^7.0.0",
+    "fast-xml-parser": "^5.11.1",
+    "framer-motion": "^13.4.4",
+    "google-auth-library": "^11.1.0",
+    "googleapis": "^182.0.0",
+    "imapflow": "^2.0.6",
+    "libphonenumber-js": "^1.13.14",
+    "lucide-react": "^1.48.0",
+    "papaparse": "^5.7.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tsdav": "^2.3.4",
+    "zustand": "^5.0.15"
+  },
+  "build": {
+    "appId": "com.contactsaligner.app",
+    "productName": "Contacts Aligner",
+    "files": [
+      "out/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native/contacts-helper/build/contacts-helper",
+        "to": "contacts-helper"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist",
+      "extendInfo": {
+        "NSContactsUsageDescription": "Contacts Aligner reads your contacts to find duplicates and, only when you approve a change, updates them.",
+        "NSAppleEventsUsageDescription": "Contacts Aligner quits Mail briefly while it cleans up Previous Recipients."
+      },
+      "target": [
+        "dmg"
+      ]
+    }
+  }
+}
