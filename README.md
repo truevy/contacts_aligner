@@ -18,6 +18,7 @@ Choose **Explore with demo data** to walk the whole flow with synthetic contacts
 | `npm test` | Engine and local-reader unit tests (vitest) |
 | `npm run e2e` | Builds, then drives the real app through the entire demo flow with Playwright |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run app` | Builds and opens the standalone “Contacts Aligner.app” (own name and permissions) |
 | `npm run dist` | Signed `.dmg` via electron-builder (set up a Developer ID to sign) |
 
 ## Flow
@@ -50,7 +51,15 @@ Choose **Explore with demo data** to walk the whole flow with synthetic contacts
 | iPhone calls | — | `CallHistory.storedata`, synced via Continuity | Full Disk Access |
 | iPhone backup | — | `sms.db` and call history from an unencrypted Finder backup | Full Disk Access |
 
-While developing, grant Full Disk Access to the app that launches Electron (your terminal or IDE) in System Settings → Privacy & Security.
+### Running as “Contacts Aligner”
+
+`npm run dev` runs inside the generic Electron binary. macOS then asks for Contacts and Full Disk Access on behalf of whichever app launched it (Terminal, your IDE, or Claude). To get prompts and a Full Disk Access entry named **Contacts Aligner**, run the standalone app:
+
+```bash
+npm run app   # builds an ad-hoc-signed dist/mac*/Contacts Aligner.app and opens it
+```
+
+Ad-hoc signatures change on every build, so macOS may ask for permissions again after a rebuild. A Developer ID-signed `npm run dist` build keeps its permissions.
 
 ## Privacy and safety
 

@@ -120,6 +120,7 @@ function handle<A extends unknown[], R>(channel: string, fn: (...args: A) => Pro
 export function registerIpc() {
   handle('app:info', () => ({
     platform: process.platform,
+    packaged: app.isPackaged,
     region: app.getLocaleCountryCode(),
     demo: session.get().demo,
     fda: process.platform === 'darwin' ? diskAccessStatus() : null,
