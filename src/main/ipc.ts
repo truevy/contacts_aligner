@@ -8,6 +8,8 @@ import { getConnector } from './connectors'
 import { googleSignIn, parseClientJson } from './connectors/google'
 import { microsoftSignIn } from './connectors/microsoft'
 import { diskAccessStatus, listIphoneBackups, readRecents } from './connectors/localMac'
+import { listContainers } from './connectors/apple'
+import { testImapLogin } from './connectors/imap'
 import { executePush, listJournals, undoPush } from './push'
 import { errorMessage } from './connectors/types'
 
@@ -15,12 +17,13 @@ import { errorMessage } from './connectors/types'
 const OPEN_ALLOW = [
   'console.cloud.google.com', 'myaccount.google.com', 'portal.azure.com', 'entra.microsoft.com',
   'account.apple.com', 'appleid.apple.com', 'login.yahoo.com', 'help.yahoo.com', 'support.apple.com',
-  'learn.microsoft.com', 'support.google.com'
+  'learn.microsoft.com', 'support.google.com', 'contacts.google.com'
 ]
 
 const PRIVACY_PANES: Record<string, string> = {
   fullDisk: 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles',
-  contacts: 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Contacts'
+  contacts: 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Contacts',
+  internetAccounts: 'x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension'
 }
 
 export type ConnectPayload = Record<string, string | boolean | undefined>
@@ -31,14 +34,22 @@ function send(channel: string, payload: unknown) {
 
 function accountLabel(kind: SourceKind): string | undefined {
   const s = vault.get<Record<string, unknown>>(kind)
-  return (s?.email ?? s?.username ?? s?.path) as string | undefined
+  return (s?.label ?? s?.email ?? s?.username ?? s?.path) as string | undefined
 }
 
 function statuses() {
   const data = session.get()
   const kinds: SourceKind[] = ['google', 'microsoft', 'exchange', 'icloud', 'yahoo', 'apple', 'macmail', 'messages', 'calls', 'iphoneBackup']
+  const writable = (kind: SourceKind) => {
+    try {
+      return data.demo || !!getConnector(kind).apply
+    } catch {
+      return false
+    }
+  }
   return kinds.map((kind) => ({
     kind,
+    writable: writable(kind),
     configured: data.demo ? !!data.meta[kind] : !!vault.get(kind),
     account: data.demo ? data.meta[kind]?.account : accountLabel(kind),
     ...data.meta[kind]
@@ -48,6 +59,28 @@ function statuses() {
 async function connect(kind: SourceKind, p: ConnectPayload): Promise<string> {
   switch (kind) {
     case 'google': {
+      if (p.mode === 'mac' || p.mode === 'file') {
+        const email = String(p.email ?? '').trim()
+        const appPassword = String(p.appPassword ?? '').replace(/\s/g, '')
+        if (appPassword) await testImapLogin('imap.gmail.com', email, appPassword)
+        const mail = appPassword ? { email, appPassword } : {}
+        if (p.mode === 'mac') {
+          const ids = String(p.containerIds ?? '').split(',').filter(Boolean)
+          vault.set('google', { mode: 'mac', containerIds: ids, label: String(p.label ?? 'Google account on this Mac'), ...mail })
+        } else {
+          vault.set('google', { mode: 'file', filePath: String(p.filePath), label: String(p.filePath).split('/').pop(), ...mail })
+        }
+        let res: string
+        try {
+          res = await getConnector('google').test()
+        } catch (err) {
+          vault.set('google', undefined)
+          throw err
+        }
+        // Cards now read as Google were previously counted under Apple Contacts.
+        if (p.mode === 'mac' && session.get().contacts.apple) await importSource('apple', 10).catch(() => undefined)
+        return res
+      }
       const { clientId, clientSecret } = p.clientJson ? parseClientJson(String(p.clientJson)) : { clientId: String(p.clientId ?? ''), clientSecret: String(p.clientSecret ?? '') }
       if (!clientId.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID should end with .apps.googleusercontent.com')
       return `Connected as ${await googleSignIn(clientId, clientSecret)}`
@@ -144,6 +177,11 @@ export function registerIpc() {
   handle('demo:load', () => session.loadDemo())
   handle('session:reset', () => session.reset())
   handle('iphone:backups', () => listIphoneBackups())
+  handle('apple:containers', () => listContainers())
+  handle('dialog:pickContactsFile', async () => {
+    const res = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'vCard', extensions: ['vcf', 'vcard'] }] })
+    return res.canceled ? undefined : res.filePaths[0]
+  })
   handle('shell:open', (url: string) => {
     const host = new URL(url).hostname
     if (!OPEN_ALLOW.some((h) => host === h || host.endsWith('.' + h))) throw new Error(`Refusing to open ${host}`)

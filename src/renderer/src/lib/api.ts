@@ -10,6 +10,8 @@ declare global {
 export interface SourceStatus {
   kind: SourceKind
   configured: boolean
+  /** Can be pushed to (read-only sources such as an imported file can't) */
+  writable?: boolean
   account?: string
   contacts?: number
   usageKeys?: number
@@ -52,7 +54,9 @@ export const api = {
   reset: () => window.api.invoke<void>('session:reset'),
   iphoneBackups: () => window.api.invoke<IphoneBackup[]>('iphone:backups'),
   open: (url: string) => window.api.invoke<void>('shell:open', url),
-  privacy: (pane: 'fullDisk' | 'contacts') => window.api.invoke<void>('shell:privacy', pane),
+  privacy: (pane: 'fullDisk' | 'contacts' | 'internetAccounts') => window.api.invoke<void>('shell:privacy', pane),
+  macAccounts: () => window.api.invoke<MacAccount[]>('apple:containers'),
+  pickContactsFile: () => window.api.invoke<string | undefined>('dialog:pickContactsFile'),
   readClientJson: () => window.api.invoke<string | undefined>('dialog:readJson'),
   save: (content: string, name: string) => window.api.invoke<string | undefined>('export:save', content, name),
   push: (plans: unknown, recentsRowIds: number[]) => window.api.invoke<Journal>('push:execute', plans, recentsRowIds),
@@ -80,3 +84,10 @@ export interface Journal {
 }
 
 export type JournalSummary = Omit<Journal, 'plans'> & { opCount: number }
+
+export interface MacAccount {
+  id: string
+  name: string
+  type: 'local' | 'exchange' | 'cardDAV' | 'unassigned'
+  count: number
+}
