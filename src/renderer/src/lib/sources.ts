@@ -158,7 +158,7 @@ export const SOURCES: SourceMeta[] = [
     gives: ['Email recency', 'Previous Recipients cleanup'],
     auth: 'fda',
     steps: [
-      { text: 'Grant Full Disk Access to Contacts Aligner (in development, grant it to Electron or to your terminal).' },
+      { text: 'Grant Full Disk Access to Contacts Aligner in System Settings → Privacy & Security.' },
       { text: 'Covers every account configured in Mail, including ones not listed here. It is also the fastest email-recency source.' }
     ],
     privacy: 'Only sender/recipient addresses and dates are read. Subjects and bodies are never queried.'

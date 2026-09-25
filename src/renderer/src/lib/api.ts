@@ -21,6 +21,8 @@ export type Access = 'ok' | 'missing' | 'denied'
 
 export interface AppInfo {
   platform: string
+  /** False when running from `npm run dev`, where macOS attributes permissions to the launching app */
+  packaged: boolean
   region: string
   demo: boolean
   fda: { mail: Access; messages: Access; calls: Access; recents: Access } | null

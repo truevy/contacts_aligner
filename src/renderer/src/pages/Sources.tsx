@@ -79,7 +79,7 @@ export function Sources() {
           </Card>
         )}
 
-        {isMac && !info?.demo && info?.fda && Object.values(info.fda).includes('denied') && <FdaBanner />}
+        {isMac && !info?.demo && info?.fda && Object.values(info.fda).includes('denied') && <FdaBanner packaged={!!info?.packaged} />}
 
         {(['contacts', 'usage'] as const).map((group) => (
           <div key={group} className="mb-8">
@@ -115,14 +115,19 @@ export function Sources() {
   )
 }
 
-function FdaBanner() {
+function FdaBanner({ packaged }: { packaged: boolean }) {
   return (
     <Card className="mb-6 flex items-center gap-4 border-amber-400/30 px-5 py-4">
       <HardDrive className="shrink-0 text-amber-300" />
       <div className="flex-1 text-sm">
         <div className="font-semibold text-amber-200">Full Disk Access unlocks Mail, Messages and call history</div>
         <div className="text-ink-300">
-          In System Settings → Privacy &amp; Security → Full Disk Access, turn on Contacts Aligner (or Electron / your terminal while developing). This page re-checks when you come back.
+          In System Settings → Privacy &amp; Security → Full Disk Access, turn on <b className="text-white">Contacts Aligner</b>. This page re-checks when you come back.
+          {!packaged && (
+            <div className="mt-1 text-xs text-amber-200/80">
+              You’re running a development build, so macOS asks on behalf of the app that launched it (such as Claude or Terminal). Run <span className="kbd">npm run app</span> to use the standalone Contacts Aligner app instead.
+            </div>
+          )}
         </div>
       </div>
       <button className="btn btn-ghost shrink-0" onClick={() => api.privacy('fullDisk')}>Open Settings</button>
