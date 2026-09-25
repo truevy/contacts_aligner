@@ -2,7 +2,8 @@ import { app } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AlignedContact, Contact } from '@engine/types'
+import type { AlignedContact, Contact, SourceKind } from '@engine/types'
+import { vault } from '../vault'
 import type { ApplyResult, Connector } from './types'
 
 interface Card {
@@ -17,6 +18,15 @@ interface Card {
   phones: Array<{ label?: string; value: string }>
   addresses?: Array<{ label?: string; value: string }>
   birthday?: string
+  container?: string
+}
+
+/** An account shown in Contacts.app: iCloud, Google, Exchange, "On My Mac"… */
+export interface MacContainer {
+  id: string
+  name: string
+  type: 'local' | 'exchange' | 'cardDAV' | 'unassigned'
+  count: number
 }
 
 function helperPath(): string {
@@ -56,53 +66,85 @@ const toCard = (a: AlignedContact) => ({
   phones: a.phones
 })
 
-export const apple: Connector = {
-  kind: 'apple',
-  async test() {
-    const cards = JSON.parse(await runHelper(['list'])) as Card[]
-    return `${cards.length} contacts in Apple Contacts`
-  },
-  async fetchContacts(ctx) {
-    ctx.progress('Reading Apple Contacts…')
-    const cards = JSON.parse(await runHelper(['list'])) as Card[]
-    return cards.map((c): Contact => {
-      const name = [c.given, c.middle, c.family].filter(Boolean).join(' ')
-      return {
-        uid: `apple:${c.id}`,
-        source: 'apple',
-        recordId: c.id,
-        displayName: name || c.org || c.emails[0]?.value || c.phones[0]?.value || '(no name)',
-        firstName: c.given || undefined,
-        middleName: c.middle || undefined,
-        lastName: c.family || undefined,
-        nickname: c.nickname || undefined,
-        organization: c.org || undefined,
-        title: c.title || undefined,
-        emails: c.emails,
-        phones: c.phones,
-        addresses: c.addresses ?? [],
-        birthday: c.birthday
-      }
-    })
-  },
-  async backup() {
-    return { ext: 'vcf', data: await runHelper(['backup']) }
-  },
-  async apply(ops, ctx) {
-    // One helper call for the whole batch; the helper saves each op separately.
-    const payload = ops.map((op) => {
-      if (op.op === 'update') return { op: 'update', id: op.recordId, card: toCard(op.after) }
-      if (op.op === 'delete') return { op: 'delete', id: op.recordId }
-      return { op: 'create', card: toCard(op.after) }
-    })
-    ctx.progress(`apple: saving ${ops.length} changes…`)
-    const results = JSON.parse(await runHelper(['apply'], JSON.stringify(payload))) as Array<{ ok: boolean; id?: string; error?: string }>
-    return results.map((r, i): ApplyResult => ({
-      op: ops[i].op,
-      recordId: ops[i].op === 'create' ? undefined : (ops[i] as { recordId: string }).recordId,
-      ok: r.ok,
-      error: r.error,
-      createdId: ops[i].op === 'create' ? r.id : undefined
-    }))
+export async function listContainers(): Promise<MacContainer[]> {
+  return JSON.parse(await runHelper(['containers'])) as MacContainer[]
+}
+
+interface Scope {
+  include?: string[]
+  exclude?: string[]
+}
+
+function scopeArgs(scope: Scope): string[] {
+  if (scope.include && !scope.include.length) throw new Error('No account selected.')
+  return [
+    ...(scope.include ? ['--include', scope.include.join(',')] : []),
+    ...(scope.exclude?.length ? ['--exclude', scope.exclude.join(',')] : [])
+  ]
+}
+
+/** Containers another source reads through this Mac (e.g. the Google account), so Apple Contacts doesn't count them twice. */
+export function claimedContainers(): string[] {
+  const g = vault.get<{ mode?: string; containerIds?: string[] }>('google')
+  return g?.mode === 'mac' ? g.containerIds ?? [] : []
+}
+
+/**
+ * Contacts through the macOS Contacts framework, limited to some accounts.
+ * Changes are saved locally and macOS syncs them to the account's server.
+ */
+export function contactsFramework(kind: SourceKind, scope: () => Scope): Connector {
+  return {
+    kind,
+    async test() {
+      const cards = JSON.parse(await runHelper(['list', ...scopeArgs(scope())])) as Card[]
+      return `${cards.length} contacts found`
+    },
+    async fetchContacts(ctx) {
+      ctx.progress('Reading contacts through macOS…')
+      const cards = JSON.parse(await runHelper(['list', ...scopeArgs(scope())])) as Card[]
+      return cards.map((c): Contact => {
+        const name = [c.given, c.middle, c.family].filter(Boolean).join(' ')
+        return {
+          uid: `${kind}:${c.id}`,
+          source: kind,
+          recordId: c.id,
+          displayName: name || c.org || c.emails[0]?.value || c.phones[0]?.value || '(no name)',
+          firstName: c.given || undefined,
+          middleName: c.middle || undefined,
+          lastName: c.family || undefined,
+          nickname: c.nickname || undefined,
+          organization: c.org || undefined,
+          title: c.title || undefined,
+          emails: c.emails,
+          phones: c.phones,
+          addresses: c.addresses ?? [],
+          birthday: c.birthday
+        }
+      })
+    },
+    async backup() {
+      return { ext: 'vcf', data: await runHelper(['backup', ...scopeArgs(scope())]) }
+    },
+    async apply(ops, ctx) {
+      // New cards go into the first selected account (e.g. the Google account), not the default one.
+      const container = scope().include?.[0]
+      const payload = ops.map((op) => {
+        if (op.op === 'update') return { op: 'update', id: op.recordId, card: toCard(op.after) }
+        if (op.op === 'delete') return { op: 'delete', id: op.recordId }
+        return { op: 'create', card: toCard(op.after), container }
+      })
+      ctx.progress(`${kind}: saving ${ops.length} changes…`)
+      const results = JSON.parse(await runHelper(['apply'], JSON.stringify(payload))) as Array<{ ok: boolean; id?: string; error?: string }>
+      return results.map((r, i): ApplyResult => ({
+        op: ops[i].op,
+        recordId: ops[i].op === 'create' ? undefined : (ops[i] as { recordId: string }).recordId,
+        ok: r.ok,
+        error: r.error,
+        createdId: ops[i].op === 'create' ? r.id : undefined
+      }))
+    }
   }
 }
+
+export const apple = contactsFramework('apple', () => ({ exclude: claimedContainers() }))

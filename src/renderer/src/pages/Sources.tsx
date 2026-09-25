@@ -9,6 +9,7 @@ import { useStore } from '../lib/store'
 import { api, type IphoneBackup, type SourceStatus } from '../lib/api'
 import { SOURCES, SOURCE_BY_KIND, type SourceMeta } from '../lib/sources'
 import { AnimatedNumber, Card, SourceIcon, StatusRing, Toggle } from '../components/ui'
+import { GoogleSimpleSetup, type GoogleMode } from '../components/GoogleSetup'
 
 type Busy = Partial<Record<SourceKind, string>>
 
@@ -190,6 +191,8 @@ function SetupPanel({ meta, status, busy, run, demo, historyYears, onNext }: Pan
   const [tenant, setTenant] = useState<'consumers' | 'common'>('consumers')
   const [clientJson, setClientJson] = useState<string>()
   const [backups, setBackups] = useState<IphoneBackup[]>()
+  const isMac = useStore((s) => s.info?.platform === 'darwin')
+  const [googleMode, setGoogleMode] = useState<GoogleMode>(isMac ? 'mac' : 'file')
 
   useEffect(() => {
     if (meta.kind === 'iphoneBackup') api.iphoneBackups().then(setBackups).catch(() => setBackups([]))
@@ -264,8 +267,23 @@ function SetupPanel({ meta, status, busy, run, demo, historyYears, onNext }: Pan
           </div>
         )}
 
-        {!demo && (
+        {!demo && meta.kind === 'google' && (
+          <div className="flex rounded-xl bg-black/20 p-1 text-xs font-semibold">
+            {(isMac ? (['mac', 'file', 'oauth'] as const) : (['file', 'oauth'] as const)).map((m) => (
+              <button key={m} onClick={() => setGoogleMode(m)} className={`flex-1 rounded-lg py-1.5 ${googleMode === m ? 'bg-white/10 text-white' : 'text-ink-400'}`}>
+                {m === 'mac' ? 'This Mac (easiest)' : m === 'file' ? 'Contacts file' : 'Advanced'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!demo && meta.kind === 'google' && googleMode !== 'oauth' ? (
+          <GoogleSimpleSetup key={googleMode} mode={googleMode} busy={busy} color={meta.color} attempt={attempt} historyYears={historyYears} />
+        ) : !demo && (
           <>
+            {meta.kind === 'google' && (
+              <div className="text-xs text-ink-400">For direct API access with your own Google Cloud OAuth client. Most people should use the simpler options above.</div>
+            )}
             {meta.kind === 'exchange' && (
               <div className="flex rounded-xl bg-black/20 p-1 text-xs font-semibold">
                 {(['graph', 'ews'] as const).map((m) => (

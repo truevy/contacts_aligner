@@ -40,12 +40,12 @@ Choose **Explore with demo data** to walk the whole flow with synthetic contacts
 
 | Source | Contacts | Usage signal | Auth |
 |---|---|---|---|
-| Gmail | People API | Gmail `gmail.metadata` scope: headers only, bodies can't be read | OAuth desktop client you register (guided) |
+| Gmail | **This Mac** (easiest): the Google account added in System Settings → Internet Accounts, read and written through the Contacts framework. Or a **contacts file** (vCard export, read-only). Or **Advanced**: People API | Mail.app history, an optional Gmail app password (IMAP headers), or the Gmail API `gmail.metadata` scope in Advanced mode | None beyond Apple’s own Google sign-in; optional app password; Advanced needs your own OAuth client |
 | Outlook.com | Microsoft Graph | Graph `Mail.ReadBasic`: no bodies | Entra app registration you create (guided) |
 | Exchange | Graph (M365) or EWS (on-prem, Basic auth) | Sent and Inbox headers | Same as above, or username/password |
 | iCloud | CardDAV | IMAP envelopes | App-specific password |
 | Yahoo | CardDAV | IMAP envelopes | App password |
-| Apple Contacts | Swift helper (`native/contacts-helper`) | — | macOS Contacts permission |
+| Apple Contacts | Swift helper (`native/contacts-helper`), every account except one claimed by the Google tile | — | macOS Contacts permission |
 | Mail.app | — | `Envelope Index`: addresses and dates only | Full Disk Access |
 | Messages | — | `chat.db`: handle, date and direction only, never text | Full Disk Access |
 | iPhone calls | — | `CallHistory.storedata`, synced via Continuity | Full Disk Access |

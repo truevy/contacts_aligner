@@ -1,7 +1,9 @@
 // contacts-helper: tiny bridge between Contacts Aligner and the macOS Contacts framework.
-//   contacts-helper list            -> JSON array of contacts on stdout
-//   contacts-helper backup          -> vCard of every contact on stdout
-//   contacts-helper apply < ops.json -> JSON array of results on stdout
+//   contacts-helper containers                         -> JSON array of accounts (iCloud, Google, Exchange, On My Mac…)
+//   contacts-helper list   [--include ids] [--exclude ids] -> JSON array of contacts, each tagged with its container
+//   contacts-helper backup [--include ids] [--exclude ids] -> vCard of those contacts on stdout
+//   contacts-helper apply < ops.json                   -> JSON array of results on stdout
+// Contacts are fetched un-unified so each card maps to exactly one account.
 import Contacts
 import Foundation
 
@@ -12,8 +14,10 @@ struct Card: Codable {
     var org: String?; var title: String?
     var emails: [LV]; var phones: [LV]; var addresses: [LV]?
     var birthday: String?
+    var container: String?
 }
-struct Op: Codable { var op: String; var id: String?; var card: Card?; var vcard: String? }
+struct Op: Codable { var op: String; var id: String?; var card: Card?; var vcard: String?; var container: String? }
+struct Container: Codable { var id: String; var name: String; var type: String; var count: Int }
 struct Result: Codable { var ok: Bool; var id: String?; var error: String? }
 
 let store = CNContactStore()
@@ -67,13 +71,53 @@ func toCard(_ c: CNContact) -> Card {
         emails: c.emailAddresses.map { LV(label: clean($0.label), value: $0.value as String) },
         phones: c.phoneNumbers.map { LV(label: clean($0.label), value: $0.value.stringValue) },
         addresses: c.postalAddresses.map { LV(label: clean($0.label), value: fmt.string(from: $0.value).replacingOccurrences(of: "\n", with: ", ")) },
-        birthday: bday)
+        birthday: bday, container: nil)
 }
 
-func allContacts(_ keys: [CNKeyDescriptor]) throws -> [CNContact] {
+func containerIds(_ flag: String) -> Set<String>? {
+    let args = Array(CommandLine.arguments)
+    guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
+    return Set(args[i + 1].split(separator: ",").map(String.init))
+}
+
+func contacts(in containerId: String, _ keys: [CNKeyDescriptor]) throws -> [CNContact] {
+    let req = CNContactFetchRequest(keysToFetch: keys)
+    req.predicate = CNContact.predicateForContactsInContainer(withIdentifier: containerId)
+    req.unifyResults = false
     var out: [CNContact] = []
-    try store.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in out.append(c) }
+    try store.enumerateContacts(with: req) { c, _ in out.append(c) }
     return out
+}
+
+/// Contacts grouped by container, honoring --include / --exclude.
+func selected(_ keys: [CNKeyDescriptor]) throws -> [(String, CNContact)] {
+    let include = containerIds("--include"), exclude = containerIds("--exclude") ?? []
+    var out: [(String, CNContact)] = []
+    for c in try store.containers(matching: nil) {
+        if let inc = include, !inc.contains(c.identifier) { continue }
+        if exclude.contains(c.identifier) { continue }
+        for contact in try contacts(in: c.identifier, keys) { out.append((c.identifier, contact)) }
+    }
+    return out
+}
+
+func fetchOne(_ id: String, _ keys: [CNKeyDescriptor]) throws -> CNContact {
+    let req = CNContactFetchRequest(keysToFetch: keys)
+    req.predicate = CNContact.predicateForContacts(withIdentifiers: [id])
+    req.unifyResults = false
+    var found: CNContact?
+    try store.enumerateContacts(with: req) { c, stop in found = c; stop.pointee = true }
+    guard let c = found else { throw NSError(domain: "helper", code: 3, userInfo: [NSLocalizedDescriptionKey: "contact \(id) not found"]) }
+    return c
+}
+
+func typeName(_ t: CNContainerType) -> String {
+    switch t {
+    case .local: return "local"
+    case .exchange: return "exchange"
+    case .cardDAV: return "cardDAV"
+    default: return "unassigned"
+    }
 }
 
 func fill(_ m: CNMutableContact, _ card: Card) {
@@ -91,11 +135,18 @@ func emit<T: Encodable>(_ v: T) {
 let cmd = CommandLine.arguments.dropFirst().first ?? ""
 requireAccess()
 switch cmd {
+case "containers":
+    do {
+        emit(try store.containers(matching: nil).map { c in
+            Container(id: c.identifier, name: c.name, type: typeName(c.type),
+                      count: (try? contacts(in: c.identifier, [CNContactIdentifierKey as CNKeyDescriptor]).count) ?? 0)
+        })
+    } catch { fail("\(error)") }
 case "list":
-    do { emit(try allContacts(keys).map(toCard)) } catch { fail("\(error)") }
+    do { emit(try selected(keys).map { (cid, c) in var card = toCard(c); card.container = cid; return card }) } catch { fail("\(error)") }
 case "backup":
     do {
-        let all = try allContacts([CNContactVCardSerialization.descriptorForRequiredKeys()])
+        let all = try selected([CNContactVCardSerialization.descriptorForRequiredKeys()]).map { $0.1 }
         FileHandle.standardOutput.write(try CNContactVCardSerialization.data(with: all))
     } catch { fail("\(error)") }
 case "apply":
@@ -109,22 +160,20 @@ case "apply":
             switch op.op {
             case "update":
                 guard let id = op.id, let card = op.card else { throw NSError(domain: "helper", code: 1, userInfo: [NSLocalizedDescriptionKey: "missing id/card"]) }
-                let c = try store.unifiedContact(withIdentifier: id, keysToFetch: keys)
-                let m = c.mutableCopy() as! CNMutableContact
+                let m = try fetchOne(id, keys).mutableCopy() as! CNMutableContact
                 fill(m, card)
                 req.update(m)
             case "create":
                 if let v = op.vcard, let data = v.data(using: .utf8), let c = try CNContactVCardSerialization.contacts(with: data).first {
                     let m = c.mutableCopy() as! CNMutableContact
-                    req.add(m, toContainerWithIdentifier: nil); newId = m.identifier
+                    req.add(m, toContainerWithIdentifier: op.container); newId = m.identifier
                 } else if let card = op.card {
                     let m = CNMutableContact(); fill(m, card)
-                    req.add(m, toContainerWithIdentifier: nil); newId = m.identifier
+                    req.add(m, toContainerWithIdentifier: op.container); newId = m.identifier
                 }
             case "delete":
                 guard let id = op.id else { throw NSError(domain: "helper", code: 1, userInfo: [NSLocalizedDescriptionKey: "missing id"]) }
-                let c = try store.unifiedContact(withIdentifier: id, keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor])
-                req.delete(c.mutableCopy() as! CNMutableContact)
+                req.delete(try fetchOne(id, [CNContactIdentifierKey as CNKeyDescriptor]).mutableCopy() as! CNMutableContact)
             default:
                 throw NSError(domain: "helper", code: 2, userInfo: [NSLocalizedDescriptionKey: "unknown op \(op.op)"])
             }
@@ -136,5 +185,5 @@ case "apply":
     }
     emit(results)
 default:
-    fail("usage: contacts-helper list|backup|apply")
+    fail("usage: contacts-helper containers|list|backup|apply")
 }
