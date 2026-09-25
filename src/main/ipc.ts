@@ -159,7 +159,17 @@ export function registerIpc() {
     fda: process.platform === 'darwin' ? diskAccessStatus() : null,
     sources: statuses()
   }))
-  handle('source:connect', (kind: SourceKind, payload: ConnectPayload) => connect(kind, payload))
+  handle('source:connect', async (kind: SourceKind, payload: ConnectPayload) => {
+    try {
+      return await connect(kind, payload)
+    } catch (err) {
+      // In development macOS checks the app that launched Electron, not Contacts Aligner.
+      if (!app.isPackaged && /Full Disk Access/.test(errorMessage(err))) {
+        throw new Error(`${errorMessage(err)} This is a development build, so grant Full Disk Access to the app you launched it from (Terminal, your IDE or Claude) and restart that app, or run \`npm run app\` and grant it to Contacts Aligner.`)
+      }
+      throw err
+    }
+  })
   handle('source:disconnect', (kind: SourceKind) => {
     vault.set(kind, undefined)
     session.removeSource(kind)

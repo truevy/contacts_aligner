@@ -1,5 +1,5 @@
 import { app, safeStorage } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 // Credentials and cached contact data are encrypted with Electron safeStorage,
@@ -14,12 +14,15 @@ function file(name: string) {
 export function readEncrypted<T>(name: string, fallback: T): T {
   const path = file(name)
   if (!existsSync(path)) return fallback
+  if (!app.isReady()) throw new Error(`readEncrypted(${name}) called before app ready; Keychain decryption isn't available yet.`)
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Keychain encryption is not available; cannot read stored data.')
   try {
-    const buf = readFileSync(path)
-    const text = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8')
-    return JSON.parse(text) as T
+    return JSON.parse(safeStorage.decryptString(readFileSync(path))) as T
   } catch (err) {
-    console.error(`Could not read ${name}:`, err)
+    // Keep the unreadable file instead of letting the next save overwrite it.
+    const aside = `${path}.unreadable-${Date.now()}`
+    renameSync(path, aside)
+    console.error(`Could not decrypt ${name}; moved it to ${aside}:`, err)
     return fallback
   }
 }
